@@ -11,6 +11,7 @@ library(igraph) # If you don't already have them, you'll need to install them
 library(tibble)
 library(lubridate)
 library(eeptools)
+library(dplyr)
 
 # Let's start by uploading the data into R Studio. You can access the data from GitHub: 
 
@@ -26,6 +27,11 @@ lic_2018_2022$dob <- as.Date(lic_2018_2022$dob, format =  "%Y-%m-%d") # Convert 
 
 lic_2018_2022 <- lic_2018_2022 %>% add_column(Age = NA) # Add "Age" column
 lic_2018_2022$Age <- as.numeric(difftime(Sys.Date(),lic_2018_2022$dob, units = "weeks"))/52.25 # Calculate age
+
+## For some reason, there are also some duplicates in the data, so let's get rid of those
+
+lic_2018_2022 <- distinct(lic_2018_2022, landings_number, license_type, license_year, .keep_all= TRUE) 
+
 
 ## You might also find it helpful to have descriptions that tell us about the different license types. To do this, let's use the lic_key dataframe to populate our license_description column in the main dataset.
 
@@ -176,18 +182,24 @@ lic_2022 <- lic_2018_2022[which(lic_2018_2022$license_year == "2022"),]
 
 # Create a matrix
 
-l22 = (lic_2022[,-(2:12)]) # Select harvester data and information about their licenses 
-l22 = as.matrix( table(l22) ) # Create matrix 
-l22col = t(l22) %*% l22 
-il22col = graph.adjacency(l22col,mode="undirected",weighted=TRUE,diag=FALSE) # Calculate adjacenecy matrix   
+l22 <- (lic_2022[,-(2:12)]) # Select harvester data and information about their licenses 
+l22 <- as.matrix( table(l22) ) # Create matrix 
+l22col <- t(l22) %*% l22 
 
+# Now let's take a look at the matrix to look at the connections between fisheries
+
+l22col # This table shows us all of the people who participate in specific fisheries based on the pairs of licenses that they hold. E.g. There are 168 aquaculture licenses. Of those, 35 hold lobster licenses.  
+
+# Our last step is to convert our matrix into an igraph
+
+il22col <- graph.adjacency(l22col,mode="undirected", weighted=TRUE, diag=FALSE)   
 
 # Let's create our first network! 
 
 plot.igraph(il22col,vertex.label=V(il22col)$name,layout=layout.kamada.kawai, # If you want to try other layouts, check out: https://networkx.org/documentation/stable/reference/drawing.html#module-networkx.drawing.layout
             edge.color="black", vertex.color="gray50")  
 
-# This plot shows us ALL the different fishing licenses and which licenses are connected to each other by people who hold them. It's a cool first stab at created a network, but there is a lot more to learn! 
+# This plot shows us ALL the different fisheries and which fisheries are connected to each other by the people who hold licenses to them It's a cool first stab at created a network, but there is a lot more to learn! 
 
 ## Let's build off of this can add information about how many people hold specific combinations of licenses. We do this by calculating edge WEIGHT
 
@@ -196,35 +208,27 @@ E(il22col)$weight # calculate edge weight
 plot.igraph(il22col,vertex.label=V(il22col)$name,layout=layout.kamada.kawai, # If you want to try other layouts, check out: https://networkx.org/documentation/stable/reference/drawing.html#module-networkx.drawing.layout
             edge.color="black", vertex.color="gray50",edge.width=E(il22col)$weight/50) # Try playing around with the weighting to see how it changes the vitual representation of your network. By default, I set it to 50. 
 
-# What jumps out from this is that not all licenses are connected in the same way. Why for example is LC3 and MENC so connected? 
+# What jumps out from this is that not all licenses are connected in the same way. Why for example is lobster and menhaden so connected? 
 
-## Now let's calculate total DEGREE (Degree centrality is a count of how many edges each node has. The more degree central an actor has the more important it is in a network)   
+## Now let's calculate total DEGREE (Degree centrality is a count of how many edges each node has. The more degree central an actor has the more important it is in a network.      
 
-deg <- degree(il22col, mode="all") 
-plot.igraph(il22col, vertex.size=deg/3, layout=layout.kamada.kawai,
+deg <- strength(il22col, mode="all")
+plot.igraph(il22col, vertex.size=deg/50, layout=layout.kamada.kawai,
             edge.color="black", vertex.color="gray50",edge.width=E(il22col)$weight/40)
 
-# We can explore this further by creating a degree curve to see the distribution of degrees  
+deg # the actual weighted degree values can be viewed here. 
+
+# We can explore this further by creating a degree curve to see the distribution of degree centrality. The more curved to the right, the less evenly distributed the network is.   
 
 deg.dist <- degree_distribution(il22col, cumulative=T, mode="all")
+degree_fishery <- degree(il22col, mode="all")
 
-plot( x=0:max(deg), y=1-deg.dist, pch=19, cex=1.2, col="orange", 
+plot( x=0:max(degree_fishery), y=1-deg.dist, pch=19, cex=1.2, col="orange", 
       
       xlab="Degree", ylab="Cumulative Frequency")
 
-# a more simple way to look at degree is to create a dataframe 
 
-degree(il22col, mode="all")
-
-# Let's also measure something called CENTRALIZATION (Centralization measures the extent to which the ties of a given network are concentrated on a single actor or group of actors)
-
-centr_degree(il22col, mode="in", normalized=T)
-
-# We can also calculate BETWEENNESS CENTRALITY (Betweenness centrality tell us which nodes are important in the structure of the network. The higher a node’s betweenness, the more important they are for the efficient flow of goods in a network.)
-
-betweenness(il22col, directed = FALSE)
-
-## Now that we've gotten some of the basics down, spend some time exploring the data with an eye towards investigating questions related to INTERSECTIONALITY. What can we say about how different groups of people interact with SES? 
+## Now that we've gotten some of the basics down, your team's task is to spend some time exploring the data with an eye towards investigating questions related to INTERSECTIONALITY. What can we say about how different groups of people interact with SES? 
 
 
 ## End 
