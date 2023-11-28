@@ -3,7 +3,7 @@
 
 # Set working directory 
 
-setwd("/Users/jstoll/tmp/SMS500_SES") 
+setwd("/Users/jstoll/tmp/SMS500_SES") # you'll need to set this 
 
 # You will need the following package(s): 
 
